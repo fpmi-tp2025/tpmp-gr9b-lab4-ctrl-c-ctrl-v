@@ -124,16 +124,31 @@ User* db_get_user_by_username(const char *username) {
     char *sql = "SELECT id, username, password_hash, role, created_at FROM PERFUME_USERS WHERE username = ?;";
     sqlite3_stmt *stmt;
     
+    printf("[DEBUG] Looking for user: %s\n", username);
+    printf("[DEBUG] SQL query: %s\n", sql);
+    
+    // Check if database connection exists
+    if (!db) {
+        printf("[DEBUG] Database connection is NULL!\n");
+        return NULL;
+    }
+    
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "[ERROR] Failed to prepare statement: %s\n", sqlite3_errmsg(db));
         return NULL;
     }
     
     sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+    printf("[DEBUG] Bound parameter 1: %s\n", username);
     
     rc = sqlite3_step(stmt);
+    printf("[DEBUG] sqlite3_step returned: %d (SQLITE_ROW=%d, SQLITE_DONE=%d)\n", 
+           rc, SQLITE_ROW, SQLITE_DONE);
+    
     if (rc != SQLITE_ROW) {
+        printf("[DEBUG] No user found with username: %s\n", username);
+        printf("[DEBUG] sqlite3_errmsg: %s\n", sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
         return NULL;
     }
@@ -150,6 +165,9 @@ User* db_get_user_by_username(const char *username) {
     const char *role_str = (const char *)sqlite3_column_text(stmt, 3);
     user->role = strcmp(role_str, "admin") == 0 ? ROLE_ADMIN : ROLE_MAKLER;
     user->created_at = (time_t)sqlite3_column_int64(stmt, 4);
+    
+    printf("[DEBUG] Found user: id=%d, username=%s, password_hash=%s, role=%s\n",
+           user->id, user->username, user->password_hash, role_str);
     
     sqlite3_finalize(stmt);
     return user;

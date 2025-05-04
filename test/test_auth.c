@@ -43,7 +43,7 @@ void test_login_logout() {
     
     User user = {0};
     strcpy(user.username, "testuser");
-    strcpy(user.password_hash, auth_hash_password("password123"));
+    strcpy(user.password_hash, "password123");
     user.role = ROLE_ADMIN;
     
     db_create_user(&user);
@@ -77,13 +77,13 @@ void test_permissions() {
     // Create admin and makler users
     User admin_user = {0};
     strcpy(admin_user.username, "admin");
-    strcpy(admin_user.password_hash, auth_hash_password("adminpass"));
+    strcpy(admin_user.password_hash, "adminpass");
     admin_user.role = ROLE_ADMIN;
     db_create_user(&admin_user);
     
     User makler_user = {0};
     strcpy(makler_user.username, "makler");
-    strcpy(makler_user.password_hash, auth_hash_password("maklerpass"));
+    strcpy(makler_user.password_hash, "maklerpass");
     makler_user.role = ROLE_MAKLER;
     db_create_user(&makler_user);
     
@@ -112,7 +112,7 @@ void test_session_management() {
     
     User user = {0};
     strcpy(user.username, "session_user");
-    strcpy(user.password_hash, auth_hash_password("session123"));
+    strcpy(user.password_hash, "session123");
     user.role = ROLE_MAKLER;
     db_create_user(&user);
     
