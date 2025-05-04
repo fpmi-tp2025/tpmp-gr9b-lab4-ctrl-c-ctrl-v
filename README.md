@@ -157,7 +157,7 @@ make debug
 # Run valgrind for memory leaks
 make valgrind
 ```
-
+[Report](https://docs.google.com/document/d/1FE_RJa3R2VS7WdybogSoiocETLWRmruR1M0bJzEMrSA/edit?usp=sharing)
 ## License
 
 This project is for educational purposes only.
