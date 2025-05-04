@@ -18,25 +18,17 @@ int auth_verify_password(const char *password, const char *hash) {
 }
 
 User* auth_login(const char *username, const char *password) {
-    printf("[DEBUG] Attempting login for user: %s\n", username);
-    
     User *user = db_get_user_by_username(username);
     if (!user) {
-        printf("[DEBUG] User not found: %s\n", username);
         return NULL;
     }
     
-    printf("[DEBUG] User found. Password in DB: '%s', Input password: '%s'\n", 
-           user->password_hash, password);
-    
     // Simple password verification (for testing only)
     if (strcmp(password, user->password_hash) != 0) {
-        printf("[DEBUG] Password mismatch!\n");
         db_free_user(user);
         return NULL;
     }
     
-    printf("[DEBUG] Password matched! Login successful.\n");
     auth_start_session(user);
     return user;
 }

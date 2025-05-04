@@ -18,40 +18,22 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential
         sudo apt-get install -y libsqlite3-dev
-        sudo apt-get install -y libssl-dev
-        sudo apt-get install -y lcov
         sudo apt-get install -y sqlite3
     
-    - name: Create directories
+    - name: Create required directories
       run: |
-        mkdir -p build bin
+        mkdir -p build bin data
     
-    - name: Initialize database
+    - name: Prepare database
       run: |
         sqlite3 parfum_bazaar.db < data/init_db.sql
+        sqlite3 parfum_bazaar.db < data/test_data.sql
     
     - name: Build
       run: make all
     
     - name: Run tests
       run: make check
-      
-    - name: Generate coverage report
-      run: make coverage
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./coverage.info
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: true
-        
-    - name: Upload coverage report artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: coverage-report
-        path: coverage-report/
 
   distcheck:
     runs-on: ubuntu-latest
@@ -64,16 +46,14 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential
         sudo apt-get install -y libsqlite3-dev
-        sudo apt-get install -y libssl-dev
         sudo apt-get install -y sqlite3
     
-    - name: Create directories
+    - name: Create required directories
       run: |
-        mkdir -p build bin
+        mkdir -p build bin data
     
     - name: Test clean build
       run: |
         make distclean
         make init_db
         make all
-        ./bin/parfum_bazaar --version || true

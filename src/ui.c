@@ -86,10 +86,9 @@ double ui_get_double(const char *prompt) {
 
 void ui_get_string(const char *prompt, char *buffer, size_t size) {
     printf("%s", prompt);
-    fflush(stdout);  // Важно для правильного вывода
+    fflush(stdout);
     
     if (fgets(buffer, size, stdin) == NULL) {
-        printf("[DEBUG] fgets failed!\n");
         buffer[0] = '\0';
         return;
     }
@@ -99,15 +98,6 @@ void ui_get_string(const char *prompt, char *buffer, size_t size) {
     if (len > 0 && buffer[len-1] == '\n') {
         buffer[len-1] = '\0';
     }
-    
-    printf("[DEBUG] Read string: '%s' (length: %zu)\n", buffer, strlen(buffer));
-    
-    // Debug: print char by char
-    printf("[DEBUG] Char by char: ");
-    for (size_t i = 0; i < strlen(buffer); i++) {
-        printf("[%d]", (int)buffer[i]);
-    }
-    printf("\n");
 }
 
 void ui_get_date(const char *prompt, char *buffer) {
@@ -139,7 +129,7 @@ void ui_display_good(const Good *good) {
 }
 
 void ui_display_deal(const Deal *deal) {
-    printf("Deal #%d - Date: %s\n", deal->id, ctime(&deal->deal_date));
+    printf("Deal #%d - Date: %s", deal->id, ctime(&deal->deal_date));
     printf("Good: %s (%s) - Qty: %d\n", deal->good_name, deal->good_type, deal->quantity);
     printf("Total: %.2f - Buyer: %s\n", deal->total_amount, deal->buyer);
     printf("------------------------\n");
