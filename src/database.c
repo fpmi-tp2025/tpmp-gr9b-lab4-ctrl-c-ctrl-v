@@ -124,31 +124,21 @@ User* db_get_user_by_username(const char *username) {
     char *sql = "SELECT id, username, password_hash, role, created_at FROM PERFUME_USERS WHERE username = ?;";
     sqlite3_stmt *stmt;
     
-    printf("[DEBUG] Looking for user: %s\n", username);
-    printf("[DEBUG] SQL query: %s\n", sql);
-    
-    // Check if database connection exists
     if (!db) {
-        printf("[DEBUG] Database connection is NULL!\n");
         return NULL;
     }
     
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "[ERROR] Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
         return NULL;
     }
     
     sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
-    printf("[DEBUG] Bound parameter 1: %s\n", username);
     
     rc = sqlite3_step(stmt);
-    printf("[DEBUG] sqlite3_step returned: %d (SQLITE_ROW=%d, SQLITE_DONE=%d)\n", 
-           rc, SQLITE_ROW, SQLITE_DONE);
     
     if (rc != SQLITE_ROW) {
-        printf("[DEBUG] No user found with username: %s\n", username);
-        printf("[DEBUG] sqlite3_errmsg: %s\n", sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
         return NULL;
     }
@@ -166,11 +156,56 @@ User* db_get_user_by_username(const char *username) {
     user->role = strcmp(role_str, "admin") == 0 ? ROLE_ADMIN : ROLE_MAKLER;
     user->created_at = (time_t)sqlite3_column_int64(stmt, 4);
     
-    printf("[DEBUG] Found user: id=%d, username=%s, password_hash=%s, role=%s\n",
-           user->id, user->username, user->password_hash, role_str);
-    
     sqlite3_finalize(stmt);
     return user;
+}
+
+int db_update_user(const User *user) {
+    char *sql = "UPDATE PERFUME_USERS SET password_hash = ?, role = ? WHERE id = ?;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, user->password_hash, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, user->role == ROLE_ADMIN ? "admin" : "makler", -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, user->id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
+int db_delete_user(int user_id) {
+    char *sql = "DELETE FROM PERFUME_USERS WHERE id = ?;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+    
+    sqlite3_bind_int(stmt, 1, user_id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
 }
 
 int db_create_makler(const Makler *makler) {
@@ -198,6 +233,40 @@ int db_create_makler(const Makler *makler) {
     int makler_id = sqlite3_last_insert_rowid(db);
     sqlite3_finalize(stmt);
     return makler_id;
+}
+
+Makler* db_get_makler_by_id(int id) {
+    char *sql = "SELECT id, name, address, birth_year, user_id FROM PERFUME_MAKLERS WHERE id = ?;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return NULL;
+    }
+    
+    sqlite3_bind_int(stmt, 1, id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        return NULL;
+    }
+    
+    Makler *makler = (Makler *)malloc(sizeof(Makler));
+    if (!makler) {
+        sqlite3_finalize(stmt);
+        return NULL;
+    }
+    
+    makler->id = sqlite3_column_int(stmt, 0);
+    strcpy(makler->name, (const char *)sqlite3_column_text(stmt, 1));
+    strcpy(makler->address, (const char *)sqlite3_column_text(stmt, 2));
+    makler->birth_year = sqlite3_column_int(stmt, 3);
+    makler->user_id = sqlite3_column_int(stmt, 4);
+    
+    sqlite3_finalize(stmt);
+    return makler;
 }
 
 Makler* db_get_makler_by_user_id(int user_id) {
@@ -232,6 +301,97 @@ Makler* db_get_makler_by_user_id(int user_id) {
     
     sqlite3_finalize(stmt);
     return makler;
+}
+
+Makler** db_get_all_maklers(int *count) {
+    char *sql = "SELECT id, name, address, birth_year, user_id FROM PERFUME_MAKLERS;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        *count = 0;
+        return NULL;
+    }
+    
+    *count = 0;
+    Makler **maklers = NULL;
+    
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        maklers = (Makler **)realloc(maklers, sizeof(Makler *) * (*count + 1));
+        if (!maklers) {
+            *count = 0;
+            sqlite3_finalize(stmt);
+            return NULL;
+        }
+        
+        maklers[*count] = (Makler *)malloc(sizeof(Makler));
+        if (!maklers[*count]) {
+            sqlite3_finalize(stmt);
+            return maklers;
+        }
+        
+        maklers[*count]->id = sqlite3_column_int(stmt, 0);
+        strcpy(maklers[*count]->name, (const char *)sqlite3_column_text(stmt, 1));
+        strcpy(maklers[*count]->address, (const char *)sqlite3_column_text(stmt, 2));
+        maklers[*count]->birth_year = sqlite3_column_int(stmt, 3);
+        maklers[*count]->user_id = sqlite3_column_int(stmt, 4);
+        
+        (*count)++;
+    }
+    
+    sqlite3_finalize(stmt);
+    return maklers;
+}
+
+int db_update_makler(const Makler *makler) {
+    char *sql = "UPDATE PERFUME_MAKLERS SET name = ?, address = ?, birth_year = ?, user_id = ? WHERE id = ?;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, makler->name, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, makler->address, -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, makler->birth_year);
+    sqlite3_bind_int(stmt, 4, makler->user_id);
+    sqlite3_bind_int(stmt, 5, makler->id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
+int db_delete_makler(int id) {
+    char *sql = "DELETE FROM PERFUME_MAKLERS WHERE id = ?;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+    
+    sqlite3_bind_int(stmt, 1, id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
 }
 
 int db_create_good(const Good *good) {
@@ -344,6 +504,58 @@ Good** db_get_all_goods(int *count) {
     return goods;
 }
 
+int db_update_good(const Good *good) {
+    char *sql = "UPDATE PERFUME_GOODS SET name = ?, type = ?, unit_price = ?, supplier = ?, expiry_date = ?, quantity = ? WHERE id = ?;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, good->name, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, good->type, -1, SQLITE_STATIC);
+    sqlite3_bind_double(stmt, 3, good->unit_price);
+    sqlite3_bind_text(stmt, 4, good->supplier, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 5, good->expiry_date, -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 6, good->quantity);
+    sqlite3_bind_int(stmt, 7, good->id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
+int db_delete_good(int id) {
+    char *sql = "DELETE FROM PERFUME_GOODS WHERE id = ?;";
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+    
+    sqlite3_bind_int(stmt, 1, id);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
 int db_check_good_availability(int good_id, int quantity_needed) {
     char *sql = "SELECT quantity FROM PERFUME_GOODS WHERE id = ?;";
     sqlite3_stmt *stmt;
@@ -381,7 +593,10 @@ int db_create_deal(const Deal *deal) {
         return -1;
     }
     
-    sqlite3_bind_text(stmt, 1, ctime(&deal->deal_date), -1, SQLITE_STATIC);
+    char date_str[20];
+    strftime(date_str, sizeof(date_str), "%Y-%m-%d %H:%M:%S", localtime(&deal->deal_date));
+    
+    sqlite3_bind_text(stmt, 1, date_str, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, deal->good_name, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3, deal->good_type, -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 4, deal->quantity);
@@ -461,8 +676,12 @@ Deal** db_get_deals_by_makler(int makler_id, int *count) {
         }
         
         deals[*count]->id = sqlite3_column_int(stmt, 0);
-        // Parse date string to time_t (simplified)
-        deals[*count]->deal_date = time(NULL); // Simplified for now
+        
+        const char *date_str = (const char *)sqlite3_column_text(stmt, 1);
+        struct tm tm = {0};
+        strptime(date_str, "%Y-%m-%d %H:%M:%S", &tm);
+        deals[*count]->deal_date = mktime(&tm);
+        
         strcpy(deals[*count]->good_name, (const char *)sqlite3_column_text(stmt, 2));
         strcpy(deals[*count]->good_type, (const char *)sqlite3_column_text(stmt, 3));
         deals[*count]->quantity = sqlite3_column_int(stmt, 4);
@@ -508,8 +727,12 @@ Deal** db_get_all_deals(int *count) {
         }
         
         deals[*count]->id = sqlite3_column_int(stmt, 0);
-        // Parse date string to time_t (simplified)
-        deals[*count]->deal_date = time(NULL); // Simplified for now
+        
+        const char *date_str = (const char *)sqlite3_column_text(stmt, 1);
+        struct tm tm = {0};
+        strptime(date_str, "%Y-%m-%d %H:%M:%S", &tm);
+        deals[*count]->deal_date = mktime(&tm);
+        
         strcpy(deals[*count]->good_name, (const char *)sqlite3_column_text(stmt, 2));
         strcpy(deals[*count]->good_type, (const char *)sqlite3_column_text(stmt, 3));
         deals[*count]->quantity = sqlite3_column_int(stmt, 4);
@@ -526,37 +749,66 @@ Deal** db_get_all_deals(int *count) {
     return deals;
 }
 
-int db_update_makler_stats(const Deal *deal) {
-    char *sql = "INSERT INTO PERFUME_MAKLERSTATS (makler_id, good_name, good_type, total_quantity, total_amount) "
-                "VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(makler_id, good_name, good_type) DO UPDATE SET "
-                "total_quantity = total_quantity + excluded.total_quantity, "
-                "total_amount = total_amount + excluded.total_amount, "
-                "updated_at = CURRENT_TIMESTAMP;";
-    
+Deal** db_get_deals_by_date_range(time_t start_date, time_t end_date, int *count) {
+    char *sql = "SELECT id, deal_date, good_name, good_type, quantity, total_amount, makler_id, good_id, buyer, created_at FROM PERFUME_DEALS WHERE date(deal_date) BETWEEN date(?) AND date(?);";
     sqlite3_stmt *stmt;
     
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        return -1;
+        *count = 0;
+        return NULL;
     }
     
-    sqlite3_bind_int(stmt, 1, deal->makler_id);
-    sqlite3_bind_text(stmt, 2, deal->good_name, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, deal->good_type, -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 4, deal->quantity);
-    sqlite3_bind_double(stmt, 5, deal->total_amount);
+    char start_str[20], end_str[20];
+    strftime(start_str, sizeof(start_str), "%Y-%m-%d", localtime(&start_date));
+    strftime(end_str, sizeof(end_str), "%Y-%m-%d", localtime(&end_date));
     
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        return -1;
+    sqlite3_bind_text(stmt, 1, start_str, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, end_str, -1, SQLITE_STATIC);
+    
+    *count = 0;
+    Deal **deals = NULL;
+    
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        deals = (Deal **)realloc(deals, sizeof(Deal *) * (*count + 1));
+        if (!deals) {
+            *count = 0;
+            sqlite3_finalize(stmt);
+            return NULL;
+        }
+        
+        deals[*count] = (Deal *)malloc(sizeof(Deal));
+        if (!deals[*count]) {
+            sqlite3_finalize(stmt);
+            return deals;
+        }
+        
+        deals[*count]->id = sqlite3_column_int(stmt, 0);
+        
+        const char *date_str = (const char *)sqlite3_column_text(stmt, 1);
+        struct tm tm = {0};
+        strptime(date_str, "%Y-%m-%d %H:%M:%S", &tm);
+        deals[*count]->deal_date = mktime(&tm);
+        
+        strcpy(deals[*count]->good_name, (const char *)sqlite3_column_text(stmt, 2));
+        strcpy(deals[*count]->good_type, (const char *)sqlite3_column_text(stmt, 3));
+        deals[*count]->quantity = sqlite3_column_int(stmt, 4);
+        deals[*count]->total_amount = sqlite3_column_double(stmt, 5);
+        deals[*count]->makler_id = sqlite3_column_int(stmt, 6);
+        deals[*count]->good_id = sqlite3_column_int(stmt, 7);
+        strcpy(deals[*count]->buyer, (const char *)sqlite3_column_text(stmt, 8));
+        deals[*count]->created_at = (time_t)sqlite3_column_int64(stmt, 9);
+        
+        (*count)++;
     }
     
     sqlite3_finalize(stmt);
-    return 0;
+    return deals;
+}
+
+int db_update_stats_on_deal(const Deal *deal) {
+    return db_update_makler_stats(deal);
 }
 
 MaklerStats* db_get_makler_stats(int makler_id, int *count) {
@@ -598,6 +850,39 @@ MaklerStats* db_get_makler_stats(int makler_id, int *count) {
     return stats;
 }
 
+int db_update_makler_stats(const Deal *deal) {
+    char *sql = "INSERT INTO PERFUME_MAKLERSTATS (makler_id, good_name, good_type, total_quantity, total_amount) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(makler_id, good_name, good_type) DO UPDATE SET "
+                "total_quantity = total_quantity + excluded.total_quantity, "
+                "total_amount = total_amount + excluded.total_amount, "
+                "updated_at = CURRENT_TIMESTAMP;";
+    
+    sqlite3_stmt *stmt;
+    
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+    
+    sqlite3_bind_int(stmt, 1, deal->makler_id);
+    sqlite3_bind_text(stmt, 2, deal->good_name, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, deal->good_type, -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 4, deal->quantity);
+    sqlite3_bind_double(stmt, 5, deal->total_amount);
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Execution failed: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
 void db_free_user(User *user) {
     if (user) free(user);
 }
@@ -612,4 +897,8 @@ void db_free_good(Good *good) {
 
 void db_free_deal(Deal *deal) {
     if (deal) free(deal);
+}
+
+void db_free_makler_stats(MaklerStats *stats) {
+    if (stats) free(stats);
 }

@@ -170,58 +170,10 @@ void makler_menu() {
 }
 
 int main() {
-    // Debug: Check database file
-    printf("[DEBUG] Checking if database file exists: %s\n", DB_PATH);
-    FILE *fp = fopen(DB_PATH, "r");
-    if (fp) {
-        fclose(fp);
-        printf("[DEBUG] Database file exists\n");
-    } else {
-        printf("[DEBUG] Database file does not exist. Initializing...\n");
-        system("make init_db");
-    }
-    
     // Initialize database
     if (db_init(DB_PATH) != 0) {
         ui_show_error("Failed to initialize database!");
         return 1;
-    }
-    
-    // Debug: Check if users table exists and has data
-    printf("[DEBUG] Checking users table...\n");
-    sqlite3 *debug_db = db_get_connection();
-    if (debug_db) {
-        sqlite3_stmt *stmt;
-        const char *check_table = "SELECT COUNT(*) FROM PERFUME_USERS;";
-        printf("[DEBUG] Executing: %s\n", check_table);
-        
-        if (sqlite3_prepare_v2(debug_db, check_table, -1, &stmt, 0) == SQLITE_OK) {
-            if (sqlite3_step(stmt) == SQLITE_ROW) {
-                int count = sqlite3_column_int(stmt, 0);
-                printf("[DEBUG] Users in database: %d\n", count);
-            } else {
-                printf("[DEBUG] Failed to get count: %s\n", sqlite3_errmsg(debug_db));
-            }
-            sqlite3_finalize(stmt);
-        } else {
-            printf("[DEBUG] Failed to prepare count query: %s\n", sqlite3_errmsg(debug_db));
-        }
-        
-        // List all users for debugging
-        const char *list_users = "SELECT username, role FROM PERFUME_USERS;";
-        printf("[DEBUG] Executing: %s\n", list_users);
-        
-        if (sqlite3_prepare_v2(debug_db, list_users, -1, &stmt, 0) == SQLITE_OK) {
-            printf("[DEBUG] Users in database:\n");
-            while (sqlite3_step(stmt) == SQLITE_ROW) {
-                const char *username = (const char *)sqlite3_column_text(stmt, 0);
-                const char *role = (const char *)sqlite3_column_text(stmt, 1);
-                printf("[DEBUG]   Username: '%s', Role: '%s'\n", username, role);
-            }
-            sqlite3_finalize(stmt);
-        } else {
-            printf("[DEBUG] Failed to prepare list query: %s\n", sqlite3_errmsg(debug_db));
-        }
     }
     
     User *current_user = NULL;
