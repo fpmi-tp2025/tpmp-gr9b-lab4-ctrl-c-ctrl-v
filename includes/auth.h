@@ -7,7 +7,7 @@
 User* auth_login(const char *username, const char *password);
 void auth_logout(User *current_user);
 int auth_check_permission(const User *user, UserRole required_role);
-char* auth_hash_password(const char *password);
+char* auth_hash_password(const char *password);  // For testing only, not secure
 int auth_verify_password(const char *password, const char *hash);
 
 // Session management

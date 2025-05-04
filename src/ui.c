@@ -86,9 +86,28 @@ double ui_get_double(const char *prompt) {
 
 void ui_get_string(const char *prompt, char *buffer, size_t size) {
     printf("%s", prompt);
-    fgets(buffer, size, stdin);
+    fflush(stdout);  // Важно для правильного вывода
+    
+    if (fgets(buffer, size, stdin) == NULL) {
+        printf("[DEBUG] fgets failed!\n");
+        buffer[0] = '\0';
+        return;
+    }
+    
     // Remove newline if present
-    buffer[strcspn(buffer, "\n")] = 0;
+    size_t len = strlen(buffer);
+    if (len > 0 && buffer[len-1] == '\n') {
+        buffer[len-1] = '\0';
+    }
+    
+    printf("[DEBUG] Read string: '%s' (length: %zu)\n", buffer, strlen(buffer));
+    
+    // Debug: print char by char
+    printf("[DEBUG] Char by char: ");
+    for (size_t i = 0; i < strlen(buffer); i++) {
+        printf("[%d]", (int)buffer[i]);
+    }
+    printf("\n");
 }
 
 void ui_get_date(const char *prompt, char *buffer) {
