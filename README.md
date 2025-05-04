@@ -126,8 +126,8 @@ This project was developed as part of a university laboratory assignment on mobi
 
 ### Team Members
 
-- **Team Lead**: [Your Name] - Project architecture, database design, authentication system
-- **Developer**: [Teammate Name] - UI implementation, reporting system, testing
+- **Team Lead**: Dzmitry Yurashevich - Project architecture, database design, authentication system
+- **Developer**: Vladislav Goncharevich - UI implementation, reporting system, testing
 
 Each team member contributed equally to:
 - Requirements analysis and specification
